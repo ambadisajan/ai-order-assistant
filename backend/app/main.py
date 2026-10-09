@@ -1,12 +1,14 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator, Optional, Dict, Any, List
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import APIRouter, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.agent import MissingApiKeyError, OrderAssistantAgent, ProviderError
 from app.config import get_settings
@@ -116,7 +118,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
-@app.get("/api/health", summary="Health Check")
+api_router = APIRouter()
+
+
+@api_router.get("/health", summary="Health Check")
 async def health_check():
     """Verify backend health and order dataset loading status."""
     return {
@@ -126,7 +131,7 @@ async def health_check():
     }
 
 
-@app.get("/api/orders", summary="List and Filter Orders")
+@api_router.get("/orders", summary="List and Filter Orders")
 async def list_orders(
     status: Optional[str] = None,
     customer: Optional[str] = None,
@@ -164,7 +169,7 @@ async def list_orders(
     }
 
 
-@app.get("/api/analytics", summary="Get Dataset Analytics and Metrics")
+@api_router.get("/analytics", summary="Get Dataset Analytics and Metrics")
 async def get_analytics(
     status: Optional[str] = None,
     category: Optional[str] = None,
@@ -193,8 +198,8 @@ async def get_analytics(
     return metrics
 
 
-@app.post(
-    "/api/chat",
+@api_router.post(
+    "/chat",
     response_model=ChatResponse,
     summary="Process User Chat Message",
     responses={
@@ -241,3 +246,91 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         reply=reply_text,
         tools_used=tools_used
     )
+
+
+# Register routes both with /api prefix and at root level
+app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
+
+
+def _find_index_html() -> Optional[Path]:
+    """Find index.html in known built frontend directories."""
+    candidate_paths = [
+        Path(__file__).resolve().parent.parent / "dist" / "index.html",
+        Path(__file__).resolve().parent.parent.parent / "dist" / "index.html",
+        Path(__file__).resolve().parent.parent / "frontend" / "dist" / "index.html",
+        Path.cwd() / "dist" / "index.html",
+        Path.cwd() / "frontend" / "dist" / "index.html",
+    ]
+    for p in candidate_paths:
+        if p.exists():
+            return p
+    return None
+
+
+@app.get("/", summary="Root Endpoint")
+async def root():
+    """Root endpoint providing static index.html or service status."""
+    index_file = _find_index_html()
+    if index_file:
+        return FileResponse(index_file)
+    return {
+        "status": "online",
+        "service": "AI Order Assistant API",
+        "documentation": "/docs",
+        "endpoints": {
+            "health": "/api/health",
+            "orders": "/api/orders",
+            "analytics": "/api/analytics",
+            "chat": "/api/chat"
+        }
+    }
+
+
+@app.get("/api", summary="API Overview")
+async def api_root():
+    """API overview endpoint."""
+    return {
+        "status": "online",
+        "service": "AI Order Assistant API",
+        "documentation": "/docs",
+        "endpoints": {
+            "health": "/api/health",
+            "orders": "/api/orders",
+            "analytics": "/api/analytics",
+            "chat": "/api/chat"
+        }
+    }
+
+
+@app.get("/index.html", summary="Frontend Entrypoint")
+async def index_html():
+    """Serve frontend index.html if available."""
+    index_file = _find_index_html()
+    if index_file:
+        return FileResponse(index_file)
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Frontend index.html not found on backend instance."}
+    )
+
+
+# Mount static assets if dist/assets exists
+def _find_assets_dir() -> Optional[Path]:
+    candidate_dirs = [
+        Path(__file__).resolve().parent.parent / "dist" / "assets",
+        Path(__file__).resolve().parent.parent.parent / "dist" / "assets",
+        Path(__file__).resolve().parent.parent / "frontend" / "dist" / "assets",
+        Path.cwd() / "dist" / "assets",
+        Path.cwd() / "frontend" / "dist" / "assets",
+    ]
+    for d in candidate_dirs:
+        if d.exists() and d.is_dir():
+            return d
+    return None
+
+
+_assets_dir = _find_assets_dir()
+if _assets_dir:
+    app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+

@@ -74,14 +74,22 @@ class OrderDataStore:
         if backend_rel.exists():
             return backend_rel.resolve()
         
-        # Check relative to repository root
+        # Check relative to repository root and api serverless directory
         repo_root = backend_dir.parent
-        if (repo_root / path_str).exists():
-            return (repo_root / path_str).resolve()
-        if (repo_root / "backend" / path_str).exists():
-            return (repo_root / "backend" / path_str).resolve()
-        if (backend_dir / "data" / "orders.csv").exists():
-            return (backend_dir / "data" / "orders.csv").resolve()
+        for candidate in [
+            repo_root / path_str,
+            repo_root / "backend" / path_str,
+            repo_root / "data" / "orders.csv",
+            repo_root / "api" / "data" / "orders.csv",
+            repo_root / "api" / "orders.csv",
+            backend_dir / "data" / "orders.csv",
+            backend_dir / "orders.csv",
+            Path.cwd() / "data" / "orders.csv",
+            Path.cwd() / "api" / "data" / "orders.csv",
+            Path.cwd() / "api" / "orders.csv",
+        ]:
+            if candidate.exists():
+                return candidate.resolve()
         
         return path.resolve()
 

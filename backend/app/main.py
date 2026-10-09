@@ -162,7 +162,7 @@ async def health_check():
     return {
         "status": "healthy",
         "orders_count": len(data_store.orders) if data_store else 0,
-        "model": settings.openai_model
+        "model": settings.effective_model
     }
 
 

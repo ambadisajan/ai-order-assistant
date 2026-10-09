@@ -145,7 +145,7 @@ export default function ChatAssistant({
       if (!response.ok) {
         let errorMsg = data.detail || 'An unexpected error occurred.';
         if (data.error_type === 'MISSING_API_KEY') {
-          errorMsg = 'API Key Required: Please add your OPENAI_API_KEY or GROQ_API_KEY into backend/.env and restart the backend server.';
+          errorMsg = 'API Key Required: Please add GROQ_API_KEY or OPENAI_API_KEY in your Vercel Project Settings -> Environment Variables (or backend/.env for local dev).';
         } else if (data.error_type === 'PROVIDER_ERROR') {
           errorMsg = `AI Provider Error: ${data.detail}`;
         }

@@ -21,22 +21,36 @@ export default function App() {
     }
   ]);
 
-  // Check backend health on mount
+  // Check backend health on mount with retry for serverless wake-up
   useEffect(() => {
-    async function checkHealth() {
+    let isMounted = true;
+
+    async function checkHealth(retryCount = 0) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/health`);
         if (res.ok) {
           const data = await res.json();
-          setBackendStatus({ online: true, count: data.orders_count, model: data.model });
+          if (isMounted) {
+            setBackendStatus({ online: true, count: data.orders_count, model: data.model });
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Backend health check attempt failed:', err);
+      }
+
+      if (isMounted) {
+        if (retryCount < 3) {
+          // Retry after 2 seconds to accommodate serverless cold start
+          setTimeout(() => checkHealth(retryCount + 1), 2000);
         } else {
           setBackendStatus({ online: false, count: 0, model: '' });
         }
-      } catch {
-        setBackendStatus({ online: false, count: 0, model: '' });
       }
     }
+
     checkHealth();
+    return () => { isMounted = false; };
   }, []);
 
   const handleAskAssistant = (question) => {

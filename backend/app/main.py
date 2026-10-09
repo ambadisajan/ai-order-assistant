@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from urllib.parse import parse_qs
+
 from app.agent import MissingApiKeyError, OrderAssistantAgent, ProviderError
 from app.config import get_settings
 from app.data_store import OrderDataStore
@@ -59,6 +61,39 @@ app = FastAPI(
     description="Backend API powering the full-stack AI Order Assistant with native tool calling.",
     lifespan=lifespan
 )
+
+
+class VercelPathRewriteMiddleware:
+    """Middleware that recovers the original API path from query parameters or Vercel routing headers."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            # If request reached Vercel index function
+            if path in ("/api/index.py", "/api/index", "/index.py", "/api"):
+                # 1. Check query string for __path parameter from rewrite
+                query_string = scope.get("query_string", b"").decode("utf-8")
+                params = parse_qs(query_string)
+                if "__path" in params and params["__path"]:
+                    target = params["__path"][0].strip("/")
+                    scope["path"] = f"/api/{target}" if target else "/api"
+                else:
+                    # 2. Check Vercel routing headers
+                    headers = dict(scope.get("headers", []))
+                    matched = headers.get(b"x-matched-path", b"").decode("utf-8")
+                    if matched and matched not in ("/api/index.py", "/api/index", "/index.py"):
+                        scope["path"] = matched
+                    else:
+                        forwarded = headers.get(b"x-forwarded-uri", b"").decode("utf-8")
+                        if forwarded and forwarded not in ("/api/index.py", "/api/index", "/index.py"):
+                            scope["path"] = forwarded.split("?")[0]
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(VercelPathRewriteMiddleware)
 
 # Configure CORS
 settings = get_settings()
@@ -301,6 +336,12 @@ async def api_root():
             "chat": "/api/chat"
         }
     }
+
+
+@app.api_route("/api/index.py", methods=["GET", "POST", "OPTIONS"], summary="Vercel Function Direct Access")
+async def api_index_py():
+    """Fallback when /api/index.py is accessed directly."""
+    return await health_check()
 
 
 @app.get("/index.html", summary="Frontend Entrypoint")

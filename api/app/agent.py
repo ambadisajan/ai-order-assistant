@@ -318,7 +318,7 @@ class OrderAssistantAgent:
             )
         return AsyncOpenAI(
             api_key=api_key,
-            base_url=self.settings.openai_base_url,
+            base_url=self.settings.effective_base_url,
             timeout=self.settings.request_timeout,
             max_retries=1
         )
@@ -366,7 +366,7 @@ class OrderAssistantAgent:
 
             try:
                 response = await client.chat.completions.create(
-                    model=self.settings.openai_model,
+                    model=self.settings.effective_model,
                     messages=sanitize_messages(messages),
                     tools=TOOLS_SCHEMA,
                     tool_choice=tool_choice,

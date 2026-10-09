@@ -38,6 +38,23 @@ class Settings(BaseSettings):
         return self.groq_api_key.strip() or self.openai_api_key.strip()
 
     @property
+    def effective_base_url(self) -> str:
+        """Return Groq base URL if Groq API key is detected and base URL is default."""
+        key = self.api_key
+        if (self.groq_api_key or key.startswith("gsk_")) and self.openai_base_url == "https://api.openai.com/v1":
+            return "https://api.groq.com/openai/v1"
+        return self.openai_base_url
+
+    @property
+    def effective_model(self) -> str:
+        """Return appropriate default model: openai/gpt-oss-120b for Groq if default model was set."""
+        key = self.api_key
+        if self.groq_api_key or key.startswith("gsk_"):
+            if self.openai_model in ("gpt-4o-mini", "llama-3.3-70b-versatile"):
+                return "openai/gpt-oss-120b"
+        return self.openai_model
+
+    @property
     def cors_origins_list(self) -> List[str]:
         """Parse comma-separated cors_origins string into a list."""
         if not self.cors_origins:

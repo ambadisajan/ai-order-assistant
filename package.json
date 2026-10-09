@@ -1,0 +1,9 @@
+{
+  "name": "ai-order-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "test": "cd frontend && npm test"
+  }
+}

@@ -20,20 +20,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger("order_assistant.api")
 
-# Global instances initialized during lifespan
-data_store: OrderDataStore = None
-agent: OrderAssistantAgent = None
+# Global instances initialized during lifespan or serverless invocation
+data_store: Optional[OrderDataStore] = None
+agent: Optional[OrderAssistantAgent] = None
+
+
+def init_resources() -> None:
+    """Eagerly initialize data store and agent if not already initialized."""
+    global data_store, agent
+    if data_store is None or agent is None:
+        settings = get_settings()
+        logger.info("Initializing OrderDataStore from: %s", settings.data_path)
+        data_store = OrderDataStore(data_path=settings.data_path)
+        agent = OrderAssistantAgent(settings=settings, data_store=data_store)
+        logger.info("OrderDataStore loaded with %d orders.", len(data_store.orders))
+
+
+# Eager initialization for serverless runtimes
+try:
+    init_resources()
+except Exception as e:
+    logger.warning("Eager init_resources deferred: %s", e)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Initialize application resources at startup and clean up at shutdown."""
-    global data_store, agent
-    settings = get_settings()
-    logger.info("Initializing OrderDataStore from: %s", settings.data_path)
-    data_store = OrderDataStore(data_path=settings.data_path)
-    agent = OrderAssistantAgent(settings=settings, data_store=data_store)
-    logger.info("OrderDataStore loaded with %d orders.", len(data_store.orders))
+    init_resources()
     yield
     logger.info("Application shutting down.")
 
@@ -50,6 +63,7 @@ settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -59,7 +59,7 @@ class OrderDataStore:
 
     @staticmethod
     def _resolve_path(path_str: str) -> Path:
-        """Resolve path whether relative to current working directory or backend root."""
+        """Resolve path whether relative to current working directory, backend root, or repo root."""
         path = Path(path_str)
         if path.is_absolute() and path.exists():
             return path
@@ -73,6 +73,15 @@ class OrderDataStore:
         backend_rel = backend_dir / path_str
         if backend_rel.exists():
             return backend_rel.resolve()
+        
+        # Check relative to repository root
+        repo_root = backend_dir.parent
+        if (repo_root / path_str).exists():
+            return (repo_root / path_str).resolve()
+        if (repo_root / "backend" / path_str).exists():
+            return (repo_root / "backend" / path_str).resolve()
+        if (backend_dir / "data" / "orders.csv").exists():
+            return (backend_dir / "data" / "orders.csv").resolve()
         
         return path.resolve()
 

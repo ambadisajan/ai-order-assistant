@@ -5,7 +5,7 @@ import Dashboard from './components/Dashboard';
 import OrderExplorer from './components/OrderExplorer';
 import './App.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('chat');

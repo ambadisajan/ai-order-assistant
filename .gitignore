@@ -2,9 +2,12 @@
 # Environment files and secrets
 .env
 .env.*
-!.env.example
+.env.local
 **/.env
 **/.env.*
+**/.env.local
+!.env.example
+!**/.env.example
 
 # Python
 venv/
